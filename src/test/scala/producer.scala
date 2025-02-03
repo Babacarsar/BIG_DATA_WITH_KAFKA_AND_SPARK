@@ -31,7 +31,7 @@ class JsonSerializer[T] extends Serializer[T] {
   override def close(): Unit = {}
 }
 
-object ScalaKafkaProducer extends App {
+object Producer extends App {
   implicit val system: ActorSystem = ActorSystem("ScalaKafkaProducer")
 
   val bootstrapServers = "localhost:9092"
