@@ -11,7 +11,7 @@ Ce projet GitHub a pour but de traiter des données volumineuses (Big Data) en u
 - Kafka
 - Zookepper
 - Java (JDK8)
-- Spark
+- Spark 3
 
 
 
