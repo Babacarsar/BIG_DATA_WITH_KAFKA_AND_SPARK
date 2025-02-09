@@ -1,6 +1,7 @@
 import org.apache.spark.sql.{SparkSession, DataFrame, functions => F}
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types.{StringType, StructType, DoubleType, TimestampType}
 import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.functions._
 
 object KafkaConsumerWithSpark extends App {
 
@@ -43,15 +44,22 @@ object KafkaConsumerWithSpark extends App {
     .selectExpr("CAST(value AS STRING) AS json")
     .select(F.from_json(F.col("json"), transactionSchema).as("transaction"))
     .select("transaction.*")
+    .withColumn("montant", when(col("devise") === "USD", col("montant").cast(DoubleType) * 0.92) // Conversion USD → EUR
+      .otherwise(col("montant").cast(DoubleType))) // Sinon, garde la valeur d'origine
+    .withColumn("devise", lit("EUR")) // Uniformisation en EUR
+    .withColumn("date", to_timestamp(col("date"), "yyyy-MM-dd HH:mm:ss")) // Conversion de date
+    .withColumn("date", from_utc_timestamp(col("date"), "Europe/Paris")) // Ajout du fuseau horaire
+    .filter(col("montant").isNotNull && col("montant") > 0) // Suppression des transactions en erreur
+    .filter(col("lieu").isNotNull) // Suppression des valeurs None dans l’adresse
 
-  // Limite à 10 messages avec un trigger de fin automatique
+  // Écriture du stream avec limite de 10 messages
   val query = transactionsStream
-    .limit(20)
+    .limit(10)
     .writeStream
     .format("parquet")
     .option("path", "s3a://transaction/transactions")
     .option("checkpointLocation", "s3a://transaction/transactions/checkpoint")
-    .trigger(Trigger.Once())  // Exécuter une seule micro-batch et s'arrêter
+    .trigger(Trigger.Once()) // Exécuter une seule micro-batch et s'arrêter
     .start()
 
   query.awaitTermination()
